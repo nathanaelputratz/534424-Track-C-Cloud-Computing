@@ -7,6 +7,8 @@ Serverless REST API untuk mencatat inventaris dan peminjaman alat laboratorium e
 
 ## Arsitektur
 
+<img width="6880" height="4240" alt="534424_AWSArchitecture_Track C" src="https://github.com/user-attachments/assets/1a9fec65-bb58-4340-be8b-39269eb69fde" />
+
 ```
 Client (curl / Postman)
    │ HTTPS
@@ -19,6 +21,7 @@ AWS Lambda — lab-equipment-handler
    ├── Amazon S3 — lab-equipment-data 
    └── Amazon CloudWatch Logs
 ```
+
 
 ## Struktur Repositori
 
