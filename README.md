@@ -1,5 +1,8 @@
 # Electronics Lab Equipment Loan API (Track C)
 
+**Nama:** Nathanael Satya Saputra
+**NIM:** 24/534424/TK/59236
+
 Serverless REST API untuk mencatat inventaris dan peminjaman alat laboratorium elektronika (*equipment loans*), yang dibangun menggunakan **AWS**.
 
 ## Arsitektur
