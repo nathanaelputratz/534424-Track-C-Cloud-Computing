@@ -14,10 +14,10 @@ Client (curl / Postman)
 AWS Lambda Function URL (HTTPS, Auth: NONE)
    │ Invoke (HTTP payload v2.0)
    ▼
-AWS Lambda — lab-equipment-handler (Python 3.12, Reserved Concurrency: 5)
-   ├── IAM LabRole (execution role, tanpa hardcoded credentials)
-   ├── Amazon S3 — lab-equipment-data (equipment/<id>.json, Block Public Access: ON)
-   └── Amazon CloudWatch Logs (/aws/lambda/lab-equipment-handler)
+AWS Lambda — lab-equipment-handler
+   ├── IAM LabRole 
+   ├── Amazon S3 — lab-equipment-data 
+   └── Amazon CloudWatch Logs
 ```
 
 ## Struktur Repositori
@@ -25,7 +25,7 @@ AWS Lambda — lab-equipment-handler (Python 3.12, Reserved Concurrency: 5)
 ```
 .
 ├── lambda/
-│   └── lambda_function.py   # Handler CRUD & validasi (Python 3.12 + boto3 S3)
+│   └── lambda_function.py   # Handler CRUD & validasi
 ├── deploy/
 │   └── deploy.sh            # Skrip AWS CLI reproducible untuk rebuild di sandbox
 ├── tests/
