@@ -4,8 +4,11 @@ import uuid
 from datetime import datetime, timezone
 
 import boto3
+from botocore.exceptions import ClientError
 
-table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
+s3 = boto3.client("s3")
+BUCKET_NAME = os.environ["BUCKET_NAME"]
+PREFIX = "equipment/"
 
 VALID_CATEGORY = (
     "microcontroller",
@@ -18,6 +21,7 @@ VALID_CATEGORY = (
 VALID_STATUS = ("available", "borrowed", "maintenance")
 VALID_CONDITION = ("good", "fair", "damaged")
 
+
 def response(code, body):
     return {
         "statusCode": code,
@@ -25,9 +29,60 @@ def response(code, body):
         "body": json.dumps(body),
     }
 
+
+def item_key(item_id):
+    return f"{PREFIX}{item_id}.json"
+
+
+def parse_route(event):
+    raw_path = (event.get("rawPath") or "").rstrip("/")
+    if raw_path == "/equipment":
+        return True, None
+    if raw_path.startswith("/equipment/"):
+        remainder = raw_path[len("/equipment/") :]
+        if remainder and "/" not in remainder:
+            return True, remainder
+    return False, None
+
+
+def get_equipment_item(item_id):
+    try:
+        obj = s3.get_object(Bucket=BUCKET_NAME, Key=item_key(item_id))
+        return json.loads(obj["Body"].read().decode("utf-8"))
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code", "")
+        if code in ("NoSuchKey", "404"):
+            return None
+        raise
+
+
+def save_equipment_item(item):
+    s3.put_object(
+        Bucket=BUCKET_NAME,
+        Key=item_key(item["id"]),
+        Body=json.dumps(item).encode("utf-8"),
+        ContentType="application/json",
+    )
+
+
+def list_equipment_items():
+    items = []
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=PREFIX):
+        for entry in page.get("Contents", []):
+            key = entry["Key"]
+            if not key.endswith(".json"):
+                continue
+            obj = s3.get_object(Bucket=BUCKET_NAME, Key=key)
+            items.append(json.loads(obj["Body"].read().decode("utf-8")))
+    return items
+
+
 def lambda_handler(event, context):
     method = event["requestContext"]["http"]["method"]
-    item_id = (event.get("pathParameters") or {}).get("id")
+    valid_route, item_id = parse_route(event)
+    if not valid_route:
+        return response(404, {"error": "route not found"})
 
     try:
         # CREATE
@@ -62,17 +117,17 @@ def lambda_handler(event, context):
                 "dueDate": "",
                 "createdAt": datetime.now(timezone.utc).isoformat(),
             }
-            table.put_item(Item=item)
+            save_equipment_item(item)
             return response(201, item)
 
         # READ
         if method == "GET":
             if item_id:
-                result = table.get_item(Key={"id": item_id})
-                if "Item" in result:
-                    return response(200, result["Item"])
+                item = get_equipment_item(item_id)
+                if item is not None:
+                    return response(200, item)
                 return response(404, {"error": "equipment not found"})
-            return response(200, table.scan()["Items"])
+            return response(200, list_equipment_items())
 
         # UPDATE
         if method == "PUT" and item_id:
@@ -116,29 +171,21 @@ def lambda_handler(event, context):
                 fields["borrower"] = ""
                 fields["dueDate"] = ""
 
-            names = {f"#{k}": k for k in fields}
-            values = {f":{k}": v for k, v in fields.items()}
-            expr = "SET " + ", ".join(f"#{k} = :{k}" for k in fields)
+            existing = get_equipment_item(item_id)
+            if existing is None:
+                return response(404, {"error": "equipment not found"})
 
-            result = table.update_item(
-                Key={"id": item_id},
-                UpdateExpression=expr,
-                ExpressionAttributeNames=names,
-                ExpressionAttributeValues=values,
-                ConditionExpression="attribute_exists(id)",
-                ReturnValues="ALL_NEW",
-            )
-            return response(200, result["Attributes"])
+            existing.update(fields)
+            save_equipment_item(existing)
+            return response(200, existing)
 
         # DELETE
         if method == "DELETE" and item_id:
-            table.delete_item(Key={"id": item_id})
+            s3.delete_object(Bucket=BUCKET_NAME, Key=item_key(item_id))
             return response(200, {"deleted": item_id})
 
         return response(400, {"error": "unsupported request"})
 
-    except table.meta.client.exceptions.ConditionalCheckFailedException:
-        return response(404, {"error": "equipment not found"})
     except json.JSONDecodeError:
         return response(400, {"error": "invalid JSON body"})
     except Exception as e:
