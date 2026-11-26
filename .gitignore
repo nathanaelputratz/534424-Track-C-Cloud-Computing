@@ -1,0 +1,20 @@
+# AWS & secrets
+.env
+.env.*
+*.pem
+*.key
+.aws/
+credentials
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
